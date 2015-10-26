@@ -111,6 +111,7 @@ func (r *reporter) send() error {
 				Time: now,
 			})
 		case metrics.Histogram:
+			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.histogram", name),
 				Fields: map[string]interface{}{
@@ -120,12 +121,12 @@ func (r *reporter) send() error {
 					"min":      m.Min(),
 					"stddev":   m.StdDev(),
 					"variance": m.Variance(),
-					"p50":      m.Percentile(50),
-					"p75":      m.Percentile(75),
-					"p95":      m.Percentile(95),
-					"p99":      m.Percentile(99),
-					"p999":     m.Percentile(99.9),
-					"p9999":    m.Percentile(99.99),
+					"p50":      ps[0],
+					"p75":      ps[1],
+					"p95":      ps[2],
+					"p99":      ps[3],
+					"p999":     ps[4],
+					"p9999":    ps[5],
 				},
 				Time: now,
 			})
@@ -142,6 +143,7 @@ func (r *reporter) send() error {
 				Time: now,
 			})
 		case metrics.Timer:
+			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.timer", name),
 				Fields: map[string]interface{}{
@@ -151,12 +153,12 @@ func (r *reporter) send() error {
 					"min":      m.Min(),
 					"stddev":   m.StdDev(),
 					"variance": m.Variance(),
-					"p50":      m.Percentile(50),
-					"p75":      m.Percentile(75),
-					"p95":      m.Percentile(95),
-					"p99":      m.Percentile(99),
-					"p999":     m.Percentile(99.9),
-					"p9999":    m.Percentile(99.99),
+					"p50":      ps[0],
+					"p75":      ps[1],
+					"p95":      ps[2],
+					"p99":      ps[3],
+					"p999":     ps[4],
+					"p9999":    ps[5],
 					"m1":       m.Rate1(),
 					"m5":       m.Rate5(),
 					"m15":      m.Rate15(),
