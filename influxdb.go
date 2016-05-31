@@ -3,79 +3,128 @@ package influxdb
 import (
 	"fmt"
 	"log"
-	uurl "net/url"
+	"net/url"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/rcrowley/go-metrics"
 )
 
+type Config struct {
+	*InfluxDB
+	
+	// Registry holds the metricses. That were needed to be 
+	// reported to influxDB.
+	Registry metrics.Registry
+	
+	// Time inerval between two consicutive influxDB call to
+	// store the matrix value to the DB. If not set Default Will
+	// be 10secs.
+	Interval time.Duration
+	
+	// Time interval to make sure the connection betwwen influxDB
+	// and client are alive. if the ping failed with an error client
+	// will try to reconnect to influxDB, if thus failed will throw
+	// panics.
+	PingInterval time.Duration
+	
+	// List of callback functions that will be invoked after every influxDB
+	// call, with the metrics interface that was used to read as param. 
+	Callbacks []Callback
+	
+	// List of custom metricses, that will be matched against the registry
+	// and needs to read metric data from.
+	CustomMetrics []CustomMetrics
+	
+	// PanicHandlers are the handlers to call whenever a panic occers.
+	PanicHandlers []func(interface{})
+}
+
+type InfluxDB struct {
+	// InfluxDB url to connect.
+	URL string
+	Database string
+	Username string
+	Password string
+	
+	// Custom InfluxDB Tags those will be send to influxDB with every call.
+	Tags map[string]string
+}
+
 type reporter struct {
-	reg      metrics.Registry
-	interval time.Duration
-
-	// if callback is set this will called after every read operation
-	// to matrix registry from inside the go-routine with the matrix
-	// interface type as the parameters.
-	callback Callback
-
-	url      uurl.URL
-	database string
-	username string
-	password string
-	tags     map[string]string
-
+	// Reporter Configurations.
+	config *Config
+	
+	// InfluXDB Client used to communicate with influxDB.
 	client *client.Client
+	
+	// Mutex Lock to call the run() only once for multiple Run() calles
+	// with same registry and configs.
+	once sync.Once
+	
+	mu sync.Mutex
 }
 
 type Callback func(interface{})
 
-// InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
-// if callback is set then it call after reading the registry with the matrix interface.
-func InfluxDB(r metrics.Registry, d time.Duration, callback Callback, url, database, username, password string) {
-	InfluxDBWithTags(r, d, callback, url, database, username, password, nil)
+type CustomMetrics interface{}
+
+func New(conf *Config) (*reporter, error) {
+	if conf.InfluxDB == nil {
+		return nil, errors.New("no influxdb configuration found")
+	}
+	
+	c, err := conf.InfluxDB.newClient()
+	if err != nil {
+		return nil, err
+	}
+	
+	if conf.Interval == time.Duration(0) {
+		conf.Interval = time.Seconds*10
+	}
+	
+	if conf.PingInterval == time.Duration(0) {
+		conf.PingInterval = time.Seconds*5
+	}
+	
+	return &reporter{
+		config: conf,
+		client: c,
+	}, nil
 }
 
-// InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
-// if callback is set then it call after reading the registry with the matrix interface.
-func InfluxDBWithTags(r metrics.Registry, d time.Duration, callback Callback, url, database, username, password string, tags map[string]string) {
-	u, err := uurl.Parse(url)
+// Creates a New InfluxDB client based on the `InfluDB` configs
+func (i *InfluxDB) newClient() (*client.Client, error) {
+	u, err := url.Parse(url)
 	if err != nil {
 		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
-		return
+		return nil, err
 	}
 
-	rep := &reporter{
-		reg:      r,
-		interval: d,
-		callback: callback,
-		url:      *u,
-		database: database,
-		username: username,
-		password: password,
-		tags:     tags,
-	}
-	if err := rep.makeClient(); err != nil {
-		log.Printf("unable to make InfluxDB client. err=%v", err)
-		return
-	}
-
-	rep.run()
-}
-
-func (r *reporter) makeClient() (err error) {
-	r.client, err = client.NewClient(client.Config{
-		URL:      r.url,
+	return client.NewClient(client.Config{
+		URL:      u,
 		Username: r.username,
 		Password: r.password,
 	})
+}
 
-	return
+func (r *reporter) Run() {
+	r.once.Do(func(){
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					r.handlePanic()
+				}
+			}()
+			r.run()
+		}()
+	})
 }
 
 func (r *reporter) run() {
-	intervalTicker := time.Tick(r.interval)
-	pingTicker := time.Tick(time.Second * 5)
+	intervalTicker := time.Tick(r.Interval)
+	pingTicker := time.Tick(r.PingInterval)
 
 	for {
 		select {

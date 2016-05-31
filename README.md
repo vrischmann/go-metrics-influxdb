@@ -1,30 +1,21 @@
-go-metrics-influxdb
-===================
+# metflux
+-----
+A influxDB reporter for the [go-metrics](https://github.com/rcrowley/go-metrics) library,
+which will post the metrics to [InfluxDB](https://influxdb.com/).
 
-This is a reporter for the [go-metrics](https://github.com/rcrowley/go-metrics) library which will post the metrics to [InfluxDB](https://influxdb.com/).
 
-Note
-----
+## Origin
+-----
+This library is a fork of [go-metrics-influxdb](https://github.com/vrischmann/go-metrics-influxdb)
+Thanx @vrischmann to write up the library.
 
-This is only compatible with InfluxDB 0.9+.
-
-Usage
+## Usage
 -----
 
 ```go
-import "github.com/vrischmann/go-metrics-influxdb"
-
-go influxdb.InfluxDB(
-    metrics.DefaultRegistry, // metrics registry
-    time.Second * 10,        // interval
-    "http://localhost:8086", // the InfluxDB url
-    "mydb",                  // your InfluxDB database
-    "myuser",                // your InfluxDB user
-    "mypassword",            // your InfluxDB password
-)
+import "github.com/sadlil/metflax"
 ```
 
-License
--------
-
-go-metrics-influxdb is licensed under the MIT license. See the LICENSE file for details.
+## License
+-----
+Licensed under the MIT license. See the [LICENSE](LICENSE) file for details.
