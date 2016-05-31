@@ -14,6 +14,11 @@ type reporter struct {
 	reg      metrics.Registry
 	interval time.Duration
 
+	// if callback is set this will called after every read operation
+	// to matrix registry from inside the go-routine with the matrix
+	// interface type as the parameters.
+	callback Callback
+
 	url      uurl.URL
 	database string
 	username string
@@ -23,13 +28,17 @@ type reporter struct {
 	client *client.Client
 }
 
+type Callback func(interface{})
+
 // InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
-func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, password string) {
-	InfluxDBWithTags(r, d, url, database, username, password, nil)
+// if callback is set then it call after reading the registry with the matrix interface.
+func InfluxDB(r metrics.Registry, d time.Duration, callback Callback, url, database, username, password string) {
+	InfluxDBWithTags(r, d, callback, url, database, username, password, nil)
 }
 
 // InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
-func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, username, password string, tags map[string]string) {
+// if callback is set then it call after reading the registry with the matrix interface.
+func InfluxDBWithTags(r metrics.Registry, d time.Duration, callback Callback, url, database, username, password string, tags map[string]string) {
 	u, err := uurl.Parse(url)
 	if err != nil {
 		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
@@ -39,6 +48,7 @@ func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, userna
 	rep := &reporter{
 		reg:      r,
 		interval: d,
+		callback: callback,
 		url:      *u,
 		database: database,
 		username: username,
@@ -91,6 +101,7 @@ func (r *reporter) send() error {
 
 	r.reg.Each(func(name string, i interface{}) {
 		now := time.Now()
+		matrixFound := false
 
 		switch m := i.(type) {
 		case metrics.Counter:
@@ -102,6 +113,7 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Gauge:
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
@@ -111,6 +123,7 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.GaugeFloat64:
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
@@ -120,6 +133,7 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Histogram:
 			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
@@ -141,6 +155,7 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Meter:
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.meter", name),
@@ -154,6 +169,7 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Timer:
 			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
@@ -179,6 +195,10 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
+		}
+		if r.callback != nil && matrixFound {
+			r.callback(i)
 		}
 	})
 
