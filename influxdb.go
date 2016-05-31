@@ -60,7 +60,7 @@ func (r *reporter) makeClient() (err error) {
 		Password: r.password,
 	})
 
-	return
+	return err
 }
 
 func (r *reporter) run() {
