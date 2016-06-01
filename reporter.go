@@ -199,14 +199,6 @@ func (r *reporter) send() error {
 				Time: now,
 			})
 			matrixFound = true
-		default:
-			for _, customMetric := range r.config.CustomMetrics {
-				if customMetric.IsApplicable(i) {
-					pts = append(pts, customMetric.GetPointFunction(i))
-					matrixFound = true
-					break
-				}
-			}
 		}
 		if matrixFound {
 			for _, callback := range r.config.Callbacks {
