@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/client"
 	"github.com/rcrowley/go-metrics"
 	"github.com/sadlil/metflux"
 	"github.com/stretchr/testify/assert"
@@ -15,10 +14,10 @@ func TestReporter(t *testing.T) {
 	reg := metrics.NewRegistry()
 	config := &metflux.Config{
 		InfluxDB: &metflux.InfluxDB{
-			URL:      "http://104.154.115.200:8086",
+			URL:      "",
 			Database: "test",
 			Username: "admin",
-			Password: "seeG9QN6U4isAp3y",
+			Password: "",
 		},
 		Registry: reg,
 		Interval: time.Second * 5,
@@ -44,10 +43,10 @@ func TestReporterWithCallback(t *testing.T) {
 	reg := metrics.NewRegistry()
 	config := &metflux.Config{
 		InfluxDB: &metflux.InfluxDB{
-			URL:      "http://104.154.115.200:8086",
+			URL:      "",
 			Database: "test",
 			Username: "admin",
-			Password: "seeG9QN6U4isAp3y",
+			Password: "",
 		},
 		Registry: reg,
 		Interval: time.Second * 5,
