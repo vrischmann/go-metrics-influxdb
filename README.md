@@ -2,14 +2,18 @@
 A influxDB reporter for the [go-metrics](https://github.com/rcrowley/go-metrics) library,
 which will post the metrics to [InfluxDB](https://influxdb.com/).
 
+Thanks to @rcrowley for the great library.
 
 ## Origin
 This library is a fork of [go-metrics-influxdb](https://github.com/vrischmann/go-metrics-influxdb)
-Thanx @vrischmann to write up the library.
+Thanks @vrischmann to write up the library.
+
+##### Difference With origin
+- callback methods that invokes after every metric read.
 
 
 ## Note
-This is only compatible with InfluxDB 0.9+.
+This is compatible with InfluxDB 0.9+.
 
 **Get this package using**
 ```bash
@@ -76,11 +80,6 @@ type Config struct {
 	// List of callback functions that will be invoked after every influxDB
 	// call, with the metrics interface that was used to read as param.
 	Callbacks []Callback
-
-	// List of custom matrices, that will be matched against the registry
-	// and needs to read metric data from. If any method from the list is
-	// invoked this stops matching and set as metrics Read.
-	CustomMetrics []CustomMetric
 
 	// PanicHandlers are the handlers to call whenever a panic occers.
 	PanicHandlers []func(interface{})
