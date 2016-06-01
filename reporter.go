@@ -1,9 +1,12 @@
-package influxdb
+package metflux
 
 import (
+	"errors"
 	"fmt"
 	"log"
-	uurl "net/url"
+	"net/url"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/client"
@@ -11,61 +14,72 @@ import (
 )
 
 type reporter struct {
-	reg      metrics.Registry
-	interval time.Duration
+	// Reporter Configurations.
+	config *Config
 
-	url      uurl.URL
-	database string
-	username string
-	password string
-	tags     map[string]string
-
+	// InfluxXDB Client used to communicate with influxDB.
 	client *client.Client
+
+	// Mutex Lock to call the run() only once for multiple Run() called
+	// with same registry and configs.
+	once sync.Once
 }
 
-// InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
-func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, password string) {
-	InfluxDBWithTags(r, d, url, database, username, password, nil)
-}
+func New(conf *Config) (*reporter, error) {
+	if conf.InfluxDB == nil {
+		return nil, errors.New("no influxdb configuration found")
+	}
 
-// InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
-func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, username, password string, tags map[string]string) {
-	u, err := uurl.Parse(url)
+	c, err := conf.InfluxDB.newClient()
 	if err != nil {
-		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
-		return
+		return nil, err
 	}
 
-	rep := &reporter{
-		reg:      r,
-		interval: d,
-		url:      *u,
-		database: database,
-		username: username,
-		password: password,
-		tags:     tags,
-	}
-	if err := rep.makeClient(); err != nil {
-		log.Printf("unable to make InfluxDB client. err=%v", err)
-		return
+	if conf.Interval == time.Duration(0) {
+		conf.Interval = time.Second * 10
 	}
 
-	rep.run()
+	if conf.PingInterval == time.Duration(0) {
+		conf.PingInterval = time.Second * 5
+	}
+
+	return &reporter{
+		config: conf,
+		client: c,
+	}, nil
 }
 
-func (r *reporter) makeClient() (err error) {
-	r.client, err = client.NewClient(client.Config{
-		URL:      r.url,
-		Username: r.username,
-		Password: r.password,
-	})
+// Creates a New InfluxDB client based on the `InfluDB` configs
+func (i *InfluxDB) newClient() (*client.Client, error) {
+	u, err := url.Parse(i.URL)
+	if err != nil {
+		log.Printf("unable to parse InfluxDB url %s. err=%v", i.URL, err)
+		return nil, err
+	}
 
-	return
+	return client.NewClient(client.Config{
+		URL:      *u,
+		Username: i.Username,
+		Password: i.Password,
+	})
+}
+
+func (r *reporter) Run() {
+	r.once.Do(func() {
+		go func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					r.handlePanic(rec)
+				}
+			}()
+			r.run()
+		}()
+	})
 }
 
 func (r *reporter) run() {
-	intervalTicker := time.Tick(r.interval)
-	pingTicker := time.Tick(time.Second * 5)
+	intervalTicker := time.Tick(r.config.Interval)
+	pingTicker := time.Tick(r.config.PingInterval)
 
 	for {
 		select {
@@ -77,8 +91,7 @@ func (r *reporter) run() {
 			_, _, err := r.client.Ping()
 			if err != nil {
 				log.Printf("got error while sending a ping to InfluxDB, trying to recreate client. err=%v", err)
-
-				if err = r.makeClient(); err != nil {
+				if r.client, err = r.config.InfluxDB.newClient(); err != nil {
 					log.Printf("unable to make InfluxDB client. err=%v", err)
 				}
 			}
@@ -88,43 +101,47 @@ func (r *reporter) run() {
 
 func (r *reporter) send() error {
 	var pts []client.Point
-
-	r.reg.Each(func(name string, i interface{}) {
+	r.config.Registry.Each(func(name string, i interface{}) {
 		now := time.Now()
+		matrixFound := false
 
+		fmt.Println("inside", name, i)
 		switch m := i.(type) {
 		case metrics.Counter:
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.count", name),
-				Tags:        r.tags,
+				Tags:        r.config.Tags,
 				Fields: map[string]interface{}{
 					"value": m.Count(),
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Gauge:
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
-				Tags:        r.tags,
+				Tags:        r.config.Tags,
 				Fields: map[string]interface{}{
 					"value": m.Value(),
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.GaugeFloat64:
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
-				Tags:        r.tags,
+				Tags:        r.config.Tags,
 				Fields: map[string]interface{}{
 					"value": m.Value(),
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Histogram:
 			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.histogram", name),
-				Tags:        r.tags,
+				Tags:        r.config.Tags,
 				Fields: map[string]interface{}{
 					"count":    m.Count(),
 					"max":      m.Max(),
@@ -141,10 +158,11 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Meter:
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.meter", name),
-				Tags:        r.tags,
+				Tags:        r.config.Tags,
 				Fields: map[string]interface{}{
 					"count": m.Count(),
 					"m1":    m.Rate1(),
@@ -154,11 +172,12 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
 		case metrics.Timer:
 			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.timer", name),
-				Tags:        r.tags,
+				Tags:        r.config.Tags,
 				Fields: map[string]interface{}{
 					"count":    m.Count(),
 					"max":      m.Max(),
@@ -179,14 +198,40 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
+			matrixFound = true
+		}
+		if matrixFound {
+			for _, callback := range r.config.Callbacks {
+				callback(i)
+			}
 		}
 	})
 
 	bps := client.BatchPoints{
 		Points:   pts,
-		Database: r.database,
+		Database: r.config.Database,
 	}
-
 	_, err := r.client.Write(bps)
 	return err
+}
+
+func (r *reporter) handlePanic(rec interface{}) {
+	logPanic(rec)
+
+	// Additional panic handlers to run
+	for _, f := range r.config.PanicHandlers {
+		f(r)
+	}
+}
+
+func logPanic(r interface{}) {
+	callers := ""
+	for i := 2; true; i++ {
+		_, file, line, ok := runtime.Caller(i)
+		if !ok {
+			break
+		}
+		callers = callers + fmt.Sprintf("%v:%v\n", file, line)
+	}
+	log.Printf("Recovered from panic: %#v \n%v", r, callers)
 }
