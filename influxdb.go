@@ -28,7 +28,7 @@ func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, pass
 	InfluxDBWithTags(r, d, url, database, username, password, nil)
 }
 
-// InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
+// InfluxDBWithTags starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
 func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, username, password string, tags map[string]string) {
 	u, err := uurl.Parse(url)
 	if err != nil {
