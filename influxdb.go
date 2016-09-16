@@ -92,46 +92,50 @@ func (r *reporter) send() error {
 	r.reg.Each(func(name string, i interface{}) {
 		now := time.Now()
 
-		switch m := i.(type) {
+		switch metric := i.(type) {
 		case metrics.Counter:
+			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.count", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"value": m.Count(),
+					"value": ms.Count(),
 				},
 				Time: now,
 			})
 		case metrics.Gauge:
+			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"value": m.Value(),
+					"value": ms.Value(),
 				},
 				Time: now,
 			})
 		case metrics.GaugeFloat64:
+			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"value": m.Value(),
+					"value": ms.Value(),
 				},
 				Time: now,
 			})
 		case metrics.Histogram:
-			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
+			ms := metric.Snapshot()
+			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.histogram", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"count":    m.Count(),
-					"max":      m.Max(),
-					"mean":     m.Mean(),
-					"min":      m.Min(),
-					"stddev":   m.StdDev(),
-					"variance": m.Variance(),
+					"count":    ms.Count(),
+					"max":      ms.Max(),
+					"mean":     ms.Mean(),
+					"min":      ms.Min(),
+					"stddev":   ms.StdDev(),
+					"variance": ms.Variance(),
 					"p50":      ps[0],
 					"p75":      ps[1],
 					"p95":      ps[2],
@@ -142,40 +146,42 @@ func (r *reporter) send() error {
 				Time: now,
 			})
 		case metrics.Meter:
+			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.meter", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"count": m.Count(),
-					"m1":    m.Rate1(),
-					"m5":    m.Rate5(),
-					"m15":   m.Rate15(),
-					"mean":  m.RateMean(),
+					"count": ms.Count(),
+					"m1":    ms.Rate1(),
+					"m5":    ms.Rate5(),
+					"m15":   ms.Rate15(),
+					"mean":  ms.RateMean(),
 				},
 				Time: now,
 			})
 		case metrics.Timer:
-			ps := m.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
+			ms := metric.Snapshot()
+			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.timer", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"count":    m.Count(),
-					"max":      m.Max(),
-					"mean":     m.Mean(),
-					"min":      m.Min(),
-					"stddev":   m.StdDev(),
-					"variance": m.Variance(),
+					"count":    ms.Count(),
+					"max":      ms.Max(),
+					"mean":     ms.Mean(),
+					"min":      ms.Min(),
+					"stddev":   ms.StdDev(),
+					"variance": ms.Variance(),
 					"p50":      ps[0],
 					"p75":      ps[1],
 					"p95":      ps[2],
 					"p99":      ps[3],
 					"p999":     ps[4],
 					"p9999":    ps[5],
-					"m1":       m.Rate1(),
-					"m5":       m.Rate5(),
-					"m15":      m.Rate15(),
-					"meanrate": m.RateMean(),
+					"m1":       ms.Rate1(),
+					"m5":       ms.Rate5(),
+					"m15":      ms.Rate15(),
+					"meanrate": ms.RateMean(),
 				},
 				Time: now,
 			})
