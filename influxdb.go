@@ -16,6 +16,7 @@ type reporter struct {
 
 	url      uurl.URL
 	database string
+	measurement string
 	username string
 	password string
 	tags     map[string]string
@@ -24,12 +25,12 @@ type reporter struct {
 }
 
 // InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
-func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, password string) {
-	InfluxDBWithTags(r, d, url, database, username, password, nil)
+func InfluxDB(r metrics.Registry, d time.Duration, url, database, measurement, username, password string) {
+	InfluxDBWithTags(r, d, url, database, measurement,username, password, nil)
 }
 
 // InfluxDBWithTags starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
-func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, username, password string, tags map[string]string) {
+func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, measurement,username, password string, tags map[string]string) {
 	u, err := uurl.Parse(url)
 	if err != nil {
 		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
@@ -41,6 +42,7 @@ func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, userna
 		interval: d,
 		url:      *u,
 		database: database,
+		measurement: measurement,
 		username: username,
 		password: password,
 		tags:     tags,
@@ -96,40 +98,37 @@ func (r *reporter) send() error {
 		case metrics.Counter:
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s.count", name),
+				Measurement: r.measurement,
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"value": ms.Count(),
+					fmt.Sprintf("%s.count", name): ms.Count(),
 				},
 				Time: now,
 			})
 		case metrics.Gauge:
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s.gauge", name),
+				Measurement: r.measurement,
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"value": ms.Value(),
+					fmt.Sprintf("%s.gauge", name): ms.Value(),
 				},
 				Time: now,
 			})
 		case metrics.GaugeFloat64:
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s.gauge", name),
+				Measurement: r.measurement,
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"value": ms.Value(),
+					fmt.Sprintf("%s.gauge", name): ms.Value(),
 				},
 				Time: now,
 			})
 		case metrics.Histogram:
 			ms := metric.Snapshot()
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
-			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s.histogram", name),
-				Tags:        r.tags,
-				Fields: map[string]interface{}{
+			fields := map[string]interface{}{
 					"count":    ms.Count(),
 					"max":      ms.Max(),
 					"mean":     ms.Mean(),
@@ -142,30 +141,46 @@ func (r *reporter) send() error {
 					"p99":      ps[3],
 					"p999":     ps[4],
 					"p9999":    ps[5],
-				},
-				Time: now,
-			})
+				}
+			for k,v := range fields {
+				these_tags := r.tags
+				these_tags["bucket"] = k
+				pts = append(pts, client.Point{
+					Measurement: r.measurement,
+					Tags:        these_tags,
+					Fields: map[string]interface{}{
+						fmt.Sprintf("%s.histogram", name) : v,
+					},
+					Time: now,
+				})
+
+			}
 		case metrics.Meter:
 			ms := metric.Snapshot()
-			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s.meter", name),
-				Tags:        r.tags,
-				Fields: map[string]interface{}{
+			fields := map[string]interface{}{
 					"count": ms.Count(),
 					"m1":    ms.Rate1(),
 					"m5":    ms.Rate5(),
 					"m15":   ms.Rate15(),
 					"mean":  ms.RateMean(),
-				},
-				Time: now,
-			})
+				}
+			for k,v := range fields {
+				these_tags := r.tags
+				these_tags["bucket"] = k
+				pts = append(pts, client.Point{
+					Measurement: r.measurement,
+					Tags:        these_tags,
+					Fields: map[string]interface{}{
+						fmt.Sprintf("%s.meter", name) : v,
+					},
+					Time: now,
+				})
+			}
+			
 		case metrics.Timer:
 			ms := metric.Snapshot()
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
-			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s.timer", name),
-				Tags:        r.tags,
-				Fields: map[string]interface{}{
+			fields := map[string]interface{}{
 					"count":    ms.Count(),
 					"max":      ms.Max(),
 					"mean":     ms.Mean(),
@@ -182,9 +197,24 @@ func (r *reporter) send() error {
 					"m5":       ms.Rate5(),
 					"m15":      ms.Rate15(),
 					"meanrate": ms.RateMean(),
-				},
-				Time: now,
-			})
+			}
+			for k,v := range fields {
+				these_tags := r.tags
+				these_tags["bucket"] = k
+				data, ok := v.(float64)
+				if !ok {
+
+					data = float64(v.(int64))
+				}
+				pts = append(pts, client.Point{
+					Measurement: r.measurement,
+					Tags:        these_tags,
+					Fields: map[string]interface{}{
+						fmt.Sprintf("%s.timer", name) : data,
+					},
+					Time: now,
+				})
+			}
 		}
 	})
 
