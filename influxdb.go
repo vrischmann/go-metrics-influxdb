@@ -91,9 +91,9 @@ func (r *reporter) run() {
 func (r *reporter) send() error {
 	var pts []client.Point
 
+	now := time.Now().Truncate(r.interval)
 	r.reg.Each(func(name string, i interface{}) {
-		now := time.Now()
-
+		
 		switch metric := i.(type) {
 		case metrics.Counter:
 			ms := metric.Snapshot()
