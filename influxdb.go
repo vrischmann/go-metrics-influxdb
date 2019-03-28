@@ -47,7 +47,7 @@ func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, measur
 		username: username,
 		password: password,
 		tags:     tags,
-		align: bool,
+		align: align,
 	}
 	if err := rep.makeClient(); err != nil {
 		log.Printf("unable to make InfluxDB client. err=%v", err)
