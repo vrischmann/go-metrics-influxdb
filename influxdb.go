@@ -95,8 +95,8 @@ func (r *reporter) send() error {
 
 	now := time.Now()
 	if r.align {
-		now = now
-	}.Truncate(r.interval)
+		now = now.Truncate(r.interval)
+	}
 	r.reg.Each(func(name string, i interface{}) {
 		
 		switch metric := i.(type) {
