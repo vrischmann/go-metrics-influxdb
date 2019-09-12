@@ -32,8 +32,8 @@ go influxdb.InfluxDBWithTags(
     measurement,                // your measurement
     metricsuser,                // your InfluxDB user
     metricspass,                // your InfluxDB password
-    tags,                       //your tag set as map[string]string
-    aligntimestamps             //align the timestamps
+    tags,                       // your tag set as map[string]string
+    aligntimestamps             // align the timestamps
 )
 ```
 
