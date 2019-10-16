@@ -27,7 +27,7 @@ type reporter struct {
 
 // InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
 func InfluxDB(r metrics.Registry, d time.Duration, url, database, measurement, username, password string, align bool) {
-	InfluxDBWithTags(r, d, url, database, measurement, username, password, nil, align)
+	InfluxDBWithTags(r, d, url, database, measurement, username, password, map[string]string{}, align)
 }
 
 // InfluxDBWithTags starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
