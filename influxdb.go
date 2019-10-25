@@ -148,7 +148,10 @@ func (r *reporter) send() error {
 				"p9999":    ps[5],
 			}
 			for k, v := range fields {
-				these_tags := r.tags
+				these_tags := map[string]string{}
+				for tk, tv := range r.tags {
+					these_tags[tk] = tv
+				}
 				these_tags["bucket"] = k
 				pts = append(pts, client.Point{
 					Measurement: r.measurement,
@@ -170,7 +173,10 @@ func (r *reporter) send() error {
 				"mean":  ms.RateMean(),
 			}
 			for k, v := range fields {
-				these_tags := r.tags
+				these_tags := map[string]string{}
+				for tk, tv := range r.tags {
+					these_tags[tk] = tv
+				}
 				these_tags["bucket"] = k
 				pts = append(pts, client.Point{
 					Measurement: r.measurement,
@@ -204,7 +210,10 @@ func (r *reporter) send() error {
 				"meanrate": ms.RateMean(),
 			}
 			for k, v := range fields {
-				these_tags := r.tags
+				these_tags := map[string]string{}
+				for tk, tv := range r.tags {
+					these_tags[tk] = tv
+				}
 				these_tags["bucket"] = k
 				data, ok := v.(float64)
 				if !ok {
