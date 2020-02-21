@@ -148,14 +148,9 @@ func (r *reporter) send() error {
 				"p9999":    ps[5],
 			}
 			for k, v := range fields {
-				these_tags := map[string]string{}
-				for tk, tv := range r.tags {
-					these_tags[tk] = tv
-				}
-				these_tags["bucket"] = k
 				pts = append(pts, client.Point{
 					Measurement: r.measurement,
-					Tags:        these_tags,
+					Tags:        bucketTags(k, r.tags),
 					Fields: map[string]interface{}{
 						fmt.Sprintf("%s.histogram", name): v,
 					},
@@ -173,14 +168,9 @@ func (r *reporter) send() error {
 				"mean":  ms.RateMean(),
 			}
 			for k, v := range fields {
-				these_tags := map[string]string{}
-				for tk, tv := range r.tags {
-					these_tags[tk] = tv
-				}
-				these_tags["bucket"] = k
 				pts = append(pts, client.Point{
 					Measurement: r.measurement,
-					Tags:        these_tags,
+					Tags:        bucketTags(k, r.tags),
 					Fields: map[string]interface{}{
 						fmt.Sprintf("%s.meter", name): v,
 					},
@@ -210,14 +200,9 @@ func (r *reporter) send() error {
 				"meanrate": ms.RateMean(),
 			}
 			for k, v := range fields {
-				these_tags := map[string]string{}
-				for tk, tv := range r.tags {
-					these_tags[tk] = tv
-				}
-				these_tags["bucket"] = k
 				pts = append(pts, client.Point{
 					Measurement: r.measurement,
-					Tags:        these_tags,
+					Tags:        bucketTags(k, r.tags),
 					Fields: map[string]interface{}{
 						fmt.Sprintf("%s.timer", name): v,
 					},
@@ -234,4 +219,13 @@ func (r *reporter) send() error {
 
 	_, err := r.client.Write(bps)
 	return err
+}
+
+func bucketTags(bucket string, tags map[string]string) map[string]string {
+	m := map[string]string{}
+	for tk, tv := range tags {
+		m[tk] = tv
+	}
+	m["bucket"] = bucket
+	return m
 }
