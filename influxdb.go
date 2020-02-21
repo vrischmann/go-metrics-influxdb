@@ -133,11 +133,11 @@ func (r *reporter) send() error {
 		case metrics.Histogram:
 			ms := metric.Snapshot()
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
-			fields := map[string]interface{}{
-				"count":    ms.Count(),
-				"max":      ms.Max(),
+			fields := map[string]float64{
+				"count":    float64(ms.Count()),
+				"max":      float64(ms.Max()),
 				"mean":     ms.Mean(),
-				"min":      ms.Min(),
+				"min":      float64(ms.Min()),
 				"stddev":   ms.StdDev(),
 				"variance": ms.Variance(),
 				"p50":      ps[0],
@@ -165,8 +165,8 @@ func (r *reporter) send() error {
 			}
 		case metrics.Meter:
 			ms := metric.Snapshot()
-			fields := map[string]interface{}{
-				"count": ms.Count(),
+			fields := map[string]float64{
+				"count": float64(ms.Count()),
 				"m1":    ms.Rate1(),
 				"m5":    ms.Rate5(),
 				"m15":   ms.Rate15(),
@@ -191,11 +191,11 @@ func (r *reporter) send() error {
 		case metrics.Timer:
 			ms := metric.Snapshot()
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
-			fields := map[string]interface{}{
-				"count":    ms.Count(),
-				"max":      ms.Max(),
+			fields := map[string]float64{
+				"count":    float64(ms.Count()),
+				"max":      float64(ms.Max()),
 				"mean":     ms.Mean(),
-				"min":      ms.Min(),
+				"min":      float64(ms.Min()),
 				"stddev":   ms.StdDev(),
 				"variance": ms.Variance(),
 				"p50":      ps[0],
@@ -215,16 +215,11 @@ func (r *reporter) send() error {
 					these_tags[tk] = tv
 				}
 				these_tags["bucket"] = k
-				data, ok := v.(float64)
-				if !ok {
-
-					data = float64(v.(int64))
-				}
 				pts = append(pts, client.Point{
 					Measurement: r.measurement,
 					Tags:        these_tags,
 					Fields: map[string]interface{}{
-						fmt.Sprintf("%s.timer", name): data,
+						fmt.Sprintf("%s.timer", name): v,
 					},
 					Time: now,
 				})
